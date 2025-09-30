@@ -1,0 +1,277 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <title>Mind-Blowing Time Manager</title>
+  <style>
+    body {
+      background: #121212;
+      color: #eee;
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      padding: 20px;
+      font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
+      user-select: none;
+    }
+    .container {
+      position: relative;
+      width: 350px;
+      height: 460px; /* Increased height to add space */
+    }
+    /* Upper time allocator circle */
+    #time-allocator {
+      position: absolute;
+      top: 28%;
+      left: 50%;
+      transform: translateX(-50%);
+      cursor: pointer;
+      filter: drop-shadow(0 0 8px rgba(50, 205, 50, 0.6));
+      background: rgba(18, 18, 18, 0.7); /* subtle transparent bg */
+      border-radius: 50%;
+    }
+    /* Center analog clock */
+    .clock {
+      position: absolute;
+      top: 170px; /* pushed down more to avoid overlap */
+      left: 50%;
+      transform: translateX(-50%);
+      width: 250px;
+      height: 250px;
+      border: 12px solid #444;
+      border-radius: 50%;
+      background: #222;
+      box-shadow: 0 0 15px #0a0;
+    }
+    .hand {
+      position: absolute;
+      width: 50%;
+      height: 6px;
+      background: #0f0;
+      top: 50%;
+      left: 50%;
+      transform-origin: 0% 50%;
+      transform: rotate(90deg);
+      border-radius: 3px;
+      transition: all 0.05s ease-in-out;
+      box-shadow: 0 0 5px #0f0; /* reduced glow */
+    }
+    .hand.hour {
+      height: 8px;
+      width: 35%;
+      background: #0a0;
+      box-shadow: 0 0 7px #0a0;
+    }
+    .center-dot {
+      position: absolute;
+      width: 16px;
+      height: 16px;
+      background: #0f0;
+      border-radius: 50%;
+      top: 50%;
+      left: 50%;
+      transform: translate(-50%, -50%);
+      box-shadow: 0 0 10px #0f0;
+    }
+    /* Clock numbers styling */
+    .clock-number {
+      position: absolute;
+      color: #0f0;
+      font-size: 18px;
+      font-weight: bold;
+      text-shadow: 0 0 5px #0f0;
+      pointer-events: none;
+      transform: translate(-50%, -50%);
+    }
+  </style>
+</head>
+<body>
+  <h2>Mind-Blowing Time Manager</h2>
+  <div class="container">
+    <canvas id="time-allocator" width="350" height="350"></canvas>
+
+    <div class="clock">
+      <div class="hand hour" id="hour-hand"></div>
+      <div class="hand minute" id="minute-hand"></div>
+      <div class="hand second" id="second-hand"></div>
+      <div class="center-dot"></div>
+    </div>
+  </div>
+
+  <script>
+    // Analog clock update
+    function updateClock() {
+      const now = new Date();
+
+      const seconds = now.getSeconds();
+      const minutes = now.getMinutes();
+      const hours = now.getHours() % 12;
+
+      const secondDegree = (seconds / 60) * 360;
+      const minuteDegree = (minutes / 60) * 360 + (seconds / 60) * 6;
+      const hourDegree = (hours / 12) * 360 + (minutes / 60) * 30;
+
+      document.getElementById('second-hand').style.transform = `rotate(${secondDegree}deg)`;
+      document.getElementById('minute-hand').style.transform = `rotate(${minuteDegree}deg)`;
+      document.getElementById('hour-hand').style.transform = `rotate(${hourDegree}deg)`;
+    }
+
+    // Add clock numbers (1-12) around the clock face
+    function drawClockNumbers() {
+      const clockElement = document.querySelector('.clock');
+      
+      // Remove existing numbers if any
+      const existingNumbers = clockElement.querySelectorAll('.clock-number');
+      existingNumbers.forEach(num => num.remove());
+      
+      const clockRadius = 125; // Half of clock width (250px / 2)
+      const numberRadius = clockRadius - 35; // Distance from center to numbers
+      
+      for (let i = 1; i <= 12; i++) {
+        const angle = (i * 30 - 90) * (Math.PI / 180); // Convert to radians, -90 to start at 12
+        const x = Math.cos(angle) * numberRadius;
+        const y = Math.sin(angle) * numberRadius;
+        
+        const numberDiv = document.createElement('div');
+        numberDiv.className = 'clock-number';
+        numberDiv.textContent = i;
+        numberDiv.style.left = `${clockRadius + x}px`;
+        numberDiv.style.top = `${clockRadius + y}px`;
+        
+        clockElement.appendChild(numberDiv);
+      }
+    }
+
+    setInterval(updateClock, 1000);
+    updateClock();
+    drawClockNumbers(); // Initialize clock numbers
+
+    // Time Allocator Circle Logic
+    const canvas = document.getElementById('time-allocator');
+    const ctx = canvas.getContext('2d');
+
+    const centerX = canvas.width / 2;
+    const centerY = canvas.height / 2;
+    const outerRadius = 170;
+    const innerRadius = 130;
+
+    const segments = 48; // 48 segments, each 30 minutes
+    const workColor = '#32CD32'; // limegreen
+    const restColor = '#1E90FF'; // dodgerblue
+    const hoverColor = '#FFFF00'; // yellow for hover highlight
+
+    // Initialize all segments as 'rest' initially
+    let segmentStates = Array(segments).fill('rest');
+    let hoveredSegment = null;
+
+    function drawAllocator() {
+      ctx.clearRect(0, 0, canvas.width, canvas.height);
+
+      for (let i = 0; i < segments; i++) {
+        const startAngle = (i / segments) * 2 * Math.PI - Math.PI / 2;
+        const endAngle = ((i + 1) / segments) * 2 * Math.PI - Math.PI / 2;
+
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, outerRadius, startAngle, endAngle, false);
+        ctx.lineTo(centerX, centerY);
+        ctx.closePath();
+
+        // Color depends on state or hover
+        if (i === hoveredSegment) {
+          ctx.fillStyle = hoverColor;
+        } else {
+          ctx.fillStyle = segmentStates[i] === 'work' ? workColor : restColor;
+        }
+        ctx.fill();
+
+        // Draw inner circle to create ring shape
+        ctx.beginPath();
+        ctx.moveTo(centerX, centerY);
+        ctx.arc(centerX, centerY, innerRadius, endAngle, startAngle, true);
+        ctx.closePath();
+        ctx.fillStyle = '#121212';
+        ctx.fill();
+
+        // Draw segment borders
+        ctx.beginPath();
+        ctx.arc(centerX, centerY, outerRadius, startAngle, endAngle, false);
+        ctx.lineTo(centerX, centerY);
+        ctx.arc(centerX, centerY, innerRadius, endAngle, startAngle, true);
+        ctx.closePath();
+
+        ctx.strokeStyle = '#222';
+        ctx.lineWidth = 1;
+        ctx.stroke();
+      }
+
+      // Draw text labels Work & Rest
+      ctx.fillStyle = '#eee';
+      ctx.font = 'bold 16px Arial';
+      ctx.textAlign = 'center';
+
+      ctx.fillText('Work', centerX, centerY - outerRadius - 20);
+      ctx.fillText('Rest', centerX, centerY + outerRadius + 35);
+    }
+
+    drawAllocator();
+
+    // Detect which segment user clicked and toggle state
+    canvas.addEventListener('click', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left - centerX;
+      const y = e.clientY - rect.top - centerY;
+
+      const angle = Math.atan2(y, x);
+      let adjustedAngle = angle + Math.PI / 2;
+      if (adjustedAngle < 0) adjustedAngle += 2 * Math.PI;
+
+      const distance = Math.sqrt(x * x + y * y);
+
+      if (distance > innerRadius && distance < outerRadius) {
+        const clickedSegment = Math.floor((adjustedAngle / (2 * Math.PI)) * segments);
+
+        // Toggle between work and rest
+        segmentStates[clickedSegment] = segmentStates[clickedSegment] === 'work' ? 'rest' : 'work';
+
+        drawAllocator();
+
+        console.log('Segment ' + clickedSegment + ' set to ' + segmentStates[clickedSegment]);
+      }
+    });
+
+    // Hover effect on segments
+    canvas.addEventListener('mousemove', (e) => {
+      const rect = canvas.getBoundingClientRect();
+      const x = e.clientX - rect.left - centerX;
+      const y = e.clientY - rect.top - centerY;
+
+      const angle = Math.atan2(y, x);
+      let adjustedAngle = angle + Math.PI / 2;
+      if (adjustedAngle < 0) adjustedAngle += 2 * Math.PI;
+
+      const distance = Math.sqrt(x * x + y * y);
+
+      if (distance > innerRadius && distance < outerRadius) {
+        const hoverSeg = Math.floor((adjustedAngle / (2 * Math.PI)) * segments);
+        if (hoverSeg !== hoveredSegment) {
+          hoveredSegment = hoverSeg;
+          drawAllocator();
+        }
+      } else if (hoveredSegment !== null) {
+        hoveredSegment = null;
+        drawAllocator();
+      }
+    });
+
+    // Remove hover when mouse leaves canvas
+    canvas.addEventListener('mouseleave', () => {
+      if (hoveredSegment !== null) {
+        hoveredSegment = null;
+        drawAllocator();
+      }
+    });
+  </script>
+</body>
+</html>
